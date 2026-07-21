@@ -24,6 +24,8 @@ document.addEventListener('DOMContentLoaded', () => {
 let state = {
   currentUser: null,
   lessons: [],
+  displayLessons: [],
+  folders: [],
   currentLessonIndex: 0,
   viewMode: 'player', // 'player' | 'admin'
   users: [],
@@ -75,6 +77,10 @@ const elements = {
  
   adminLessonForm: document.getElementById('admin-lesson-form'),
   adminLessonId: document.getElementById('admin-lesson-id'),
+  adminLessonFolderSelect: document.getElementById('admin-lesson-folder-select'),
+  newFolderNameGroup: document.getElementById('new-folder-name-group'),
+  adminNewFolderName: document.getElementById('admin-new-folder-name'),
+  adminLessonHidden: document.getElementById('admin-lesson-hidden'),
   adminTitle: document.getElementById('admin-title'),
   adminVideoUrl: document.getElementById('admin-video-url'),
   adminDuration: document.getElementById('admin-duration'),
@@ -115,9 +121,123 @@ const elements = {
  
 // System Orchestration & Launch
 async function init() {
-  await loadLessons();
+  await Promise.all([loadFolders(), loadLessons()]);
   setupEventListeners();
   checkSession();
+}
+ 
+// -----------------------------------------------------------------------
+// Folders — تصنيف الدروس داخل مجلدات/كورسات
+// -----------------------------------------------------------------------
+ 
+async function loadFolders() {
+  const { data, error } = await supabaseClient
+    .from('folders')
+    .select('*')
+    .order('sort_order', { ascending: true });
+ 
+  if (error) {
+    console.error('Error loading folders from Supabase:', error);
+    state.folders = [];
+    return;
+  }
+ 
+  state.folders = data || [];
+}
+ 
+function populateFolderSelect() {
+  if (!elements.adminLessonFolderSelect) return;
+ 
+  const currentValue = elements.adminLessonFolderSelect.value;
+ 
+  elements.adminLessonFolderSelect.innerHTML = `
+    <option value="">— Uncategorized (no folder) —</option>
+    ${state.folders.map(f => `<option value="${f.id}">${f.name}</option>`).join('')}
+    <option value="__new__">+ Create New Folder...</option>
+  `;
+ 
+  const stillExists = Array.from(elements.adminLessonFolderSelect.options).some(o => o.value === currentValue);
+  elements.adminLessonFolderSelect.value = stillExists ? currentValue : '';
+  elements.newFolderNameGroup.classList.toggle('hidden', elements.adminLessonFolderSelect.value !== '__new__');
+}
+ 
+// Recomputes which lessons should actually be visible for the current
+// user: admins always see everything, regular learners never see lessons
+// that live inside a hidden folder or that are individually hidden.
+function computeDisplayLessons() {
+  if (isAdminUser(state.currentUser)) {
+    state.displayLessons = state.lessons.slice();
+    return;
+  }
+ 
+  const hiddenFolderIds = new Set(state.folders.filter(f => f.is_hidden).map(f => f.id));
+ 
+  state.displayLessons = state.lessons.filter(lesson => {
+    if (lesson.isHidden) return false;
+    if (lesson.folderId && hiddenFolderIds.has(lesson.folderId)) return false;
+    return true;
+  });
+}
+ 
+async function toggleFolderHidden(folder) {
+  const nextHidden = !folder.is_hidden;
+ 
+  const { error } = await supabaseClient
+    .from('folders')
+    .update({ is_hidden: nextHidden })
+    .eq('id', folder.id);
+ 
+  if (error) {
+    console.error('Error updating folder visibility:', error);
+    showToast('Failed to update folder visibility.', 'error');
+    return;
+  }
+ 
+  showToast(`Folder ${nextHidden ? 'hidden from students' : 'made visible'}.`, 'success');
+  await refreshLessons();
+}
+ 
+async function deleteFolder(folder) {
+  const lessonsInside = state.lessons.filter(l => l.folderId === folder.id).length;
+ 
+  if (lessonsInside > 0) {
+    showToast('Move or delete all lessons inside this folder first.', 'error');
+    return;
+  }
+ 
+  if (!confirm(`Delete folder "${folder.name}"? This cannot be undone.`)) return;
+ 
+  const { error } = await supabaseClient
+    .from('folders')
+    .delete()
+    .eq('id', folder.id);
+ 
+  if (error) {
+    console.error('Error deleting folder:', error);
+    showToast('Failed to delete folder.', 'error');
+    return;
+  }
+ 
+  showToast('Folder deleted successfully.', 'success');
+  await refreshLessons();
+}
+ 
+async function toggleLessonHidden(lesson) {
+  const nextHidden = !lesson.isHidden;
+ 
+  const { error } = await supabaseClient
+    .from('lessons')
+    .update({ is_hidden: nextHidden })
+    .eq('id', lesson.id);
+ 
+  if (error) {
+    console.error('Error updating lesson visibility:', error);
+    showToast('Failed to update lesson visibility.', 'error');
+    return;
+  }
+ 
+  showToast(`Lesson ${nextHidden ? 'hidden from students' : 'made visible'}.`, 'success');
+  await refreshLessons();
 }
  
 // -----------------------------------------------------------------------
@@ -141,14 +261,18 @@ async function loadLessons() {
     title: row.title,
     url: row.video_id,
     duration: row.duration,
-    desc: row.description
+    desc: row.description,
+    folderId: row.folder_id || null,
+    isHidden: !!row.is_hidden
   }));
 }
  
 async function refreshLessons() {
-  await loadLessons();
+  await Promise.all([loadFolders(), loadLessons()]);
+  computeDisplayLessons();
   renderLessonSidebar();
   renderAdminLessonsTable();
+  populateFolderSelect();
 }
  
 // -----------------------------------------------------------------------
@@ -232,12 +356,14 @@ function launchApp() {
     }
   }
  
+  computeDisplayLessons();
+  populateFolderSelect();
   renderLessonSidebar();
   renderAdminLessonsTable();
   setView('player');
  
   // Boot first lesson if available
-  if (state.lessons.length > 0) {
+  if (state.displayLessons.length > 0) {
     selectLesson(0);
   } else {
     clearPlayerDisplay();
@@ -272,7 +398,7 @@ function setView(mode) {
 function renderLessonSidebar() {
   elements.lessonListContainer.innerHTML = '';
  
-  if (state.lessons.length === 0) {
+  if (state.displayLessons.length === 0) {
     elements.lessonListContainer.innerHTML = '<p class="form-help" style="padding:16px;">No lessons inside database.</p>';
     elements.courseProgressText.textContent = '0/0 Lessons Complete';
     return;
@@ -280,62 +406,142 @@ function renderLessonSidebar() {
  
   const isSubscribed = state.currentUser && (state.currentUser.subscribed || isAdminUser(state.currentUser));
  
-  state.lessons.forEach((lesson, index) => {
-    const item = document.createElement('div');
-    item.className = `lesson-item ${index === state.currentLessonIndex ? 'active' : ''}`;
+  // Group the visible lessons by folder while preserving overall order,
+  // so the sidebar can show a folder heading above each cluster.
+  const folderMap = new Map(state.folders.map(f => [f.id, f]));
+  const groups = [];
+  const groupIndexByKey = new Map();
  
-    // First item always unlocked, rest depends on access tier status
-    const isLocked = index > 0 && !isSubscribed;
- 
-    item.innerHTML = `
-      <div class="lesson-item-left">
-        <span class="lesson-title">${lesson.title}</span>
-        <span class="lesson-duration">${lesson.duration || ''}</span>
-      </div>
-      ${isLocked ? `
-      <div class="lock-icon">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-      </div>
-      ` : ''}
-    `;
- 
-    item.addEventListener('click', () => {
-      selectLesson(index);
-    });
- 
-    elements.lessonListContainer.appendChild(item);
+  state.displayLessons.forEach(lesson => {
+    const key = lesson.folderId || '__none__';
+    if (!groupIndexByKey.has(key)) {
+      const folder = lesson.folderId ? folderMap.get(lesson.folderId) : null;
+      const name = folder ? folder.name : 'Uncategorized';
+      groupIndexByKey.set(key, groups.length);
+      groups.push({ key, name, lessons: [] });
+    }
+    groups[groupIndexByKey.get(key)].lessons.push(lesson);
   });
  
-  elements.courseProgressText.textContent = `${isSubscribed ? state.lessons.length : 1} / ${state.lessons.length} Accessible Lessons`;
+  const showHeaders = state.folders.length > 0;
+ 
+  groups.forEach(group => {
+    if (showHeaders) {
+      const header = document.createElement('div');
+      header.className = 'sidebar-folder-header';
+      header.textContent = group.name;
+      elements.lessonListContainer.appendChild(header);
+    }
+ 
+    group.lessons.forEach(lesson => {
+      const index = state.displayLessons.indexOf(lesson);
+ 
+      const item = document.createElement('div');
+      item.className = `lesson-item ${index === state.currentLessonIndex ? 'active' : ''}`;
+ 
+      // First item overall always unlocked, rest depends on access tier status
+      const isLocked = index > 0 && !isSubscribed;
+ 
+      item.innerHTML = `
+        <div class="lesson-item-left">
+          <span class="lesson-title">${lesson.title}</span>
+          <span class="lesson-duration">${lesson.duration || ''}</span>
+        </div>
+        ${isLocked ? `
+        <div class="lock-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+        ` : ''}
+      `;
+ 
+      item.addEventListener('click', () => {
+        selectLesson(index);
+      });
+ 
+      elements.lessonListContainer.appendChild(item);
+    });
+  });
+ 
+  elements.courseProgressText.textContent = `${isSubscribed ? state.displayLessons.length : 1} / ${state.displayLessons.length} Accessible Lessons`;
 }
  
 function renderAdminLessonsTable() {
   elements.adminLessonsTbody.innerHTML = '';
  
   if (state.lessons.length === 0) {
-    elements.adminLessonsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;" class="form-help">Syllabus is completely empty.</td></tr>';
+    elements.adminLessonsTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="form-help">Syllabus is completely empty.</td></tr>';
     return;
   }
  
-  state.lessons.forEach((lesson, index) => {
-    const tr = document.createElement('tr');
+  // Group all lessons (admin sees everything, hidden or not) by folder
+  const groups = [];
+  const groupIndexByKey = new Map();
  
-    tr.innerHTML = `
-      <td style="font-weight:600; color:var(--color-accent);"># ${(index + 1).toString().padStart(2, '0')}</td>
-      <td><div style="font-weight:500; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${lesson.title}</div></td>
-      <td>${lesson.duration || ''}</td>
-      <td>
-        <div style="display:flex; gap:8px;">
-          <button class="btn btn-secondary btn-edit-lesson" data-id="${lesson.id}" style="padding:6px 10px; font-size:12px;">Edit</button>
-          <button class="btn btn-danger btn-delete-lesson" data-id="${lesson.id}" style="padding:6px 10px; font-size:12px;">Delete</button>
-        </div>
-      </td>
-    `;
+  state.lessons.forEach(lesson => {
+    const key = lesson.folderId || '__none__';
+    if (!groupIndexByKey.has(key)) {
+      const folder = lesson.folderId ? state.folders.find(f => f.id === lesson.folderId) : null;
+      groupIndexByKey.set(key, groups.length);
+      groups.push({ key, folder, name: folder ? folder.name : 'Uncategorized', lessons: [] });
+    }
+    groups[groupIndexByKey.get(key)].lessons.push(lesson);
+  });
  
-    tr.querySelector('.btn-edit-lesson').addEventListener('click', () => startEditLesson(lesson));
-    tr.querySelector('.btn-delete-lesson').addEventListener('click', () => deleteLesson(lesson.id));
+  groups.forEach(group => {
+    if (state.folders.length > 0) {
+      const headerTr = document.createElement('tr');
+      const isHidden = group.folder ? !!group.folder.is_hidden : false;
  
-    elements.adminLessonsTbody.appendChild(tr);
+      headerTr.innerHTML = `
+        <td colspan="5" style="background-color: rgba(255,255,255,0.03); padding: 10px 12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-weight:600;">${group.name}</span>
+              ${group.folder ? `<span class="badge ${isHidden ? 'badge-disabled' : 'badge-active'}">${isHidden ? 'Hidden' : 'Visible'}</span>` : ''}
+              <span class="form-help">${group.lessons.length} lesson(s)</span>
+            </div>
+            ${group.folder ? `
+            <div style="display:flex; gap:8px;">
+              <button class="btn btn-secondary btn-toggle-folder" style="padding:6px 10px; font-size:12px;">${isHidden ? 'Show Folder' : 'Hide Folder'}</button>
+              <button class="btn btn-danger btn-delete-folder" style="padding:6px 10px; font-size:12px;">Delete Folder</button>
+            </div>
+            ` : ''}
+          </div>
+        </td>
+      `;
+ 
+      if (group.folder) {
+        headerTr.querySelector('.btn-toggle-folder').addEventListener('click', () => toggleFolderHidden(group.folder));
+        headerTr.querySelector('.btn-delete-folder').addEventListener('click', () => deleteFolder(group.folder));
+      }
+ 
+      elements.adminLessonsTbody.appendChild(headerTr);
+    }
+ 
+    group.lessons.forEach((lesson) => {
+      const overallIndex = state.lessons.indexOf(lesson);
+      const tr = document.createElement('tr');
+ 
+      tr.innerHTML = `
+        <td style="font-weight:600; color:var(--color-accent);"># ${(overallIndex + 1).toString().padStart(2, '0')}</td>
+        <td><div style="font-weight:500; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${lesson.title}</div></td>
+        <td>${lesson.duration || ''}</td>
+        <td><span class="badge ${lesson.isHidden ? 'badge-disabled' : 'badge-active'}">${lesson.isHidden ? 'Hidden' : 'Visible'}</span></td>
+        <td>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-edit-lesson" data-id="${lesson.id}" style="padding:6px 10px; font-size:12px;">Edit</button>
+            <button class="btn btn-outline btn-toggle-lesson" data-id="${lesson.id}" style="padding:6px 10px; font-size:12px;">${lesson.isHidden ? 'Show' : 'Hide'}</button>
+            <button class="btn btn-danger btn-delete-lesson" data-id="${lesson.id}" style="padding:6px 10px; font-size:12px;">Delete</button>
+          </div>
+        </td>
+      `;
+ 
+      tr.querySelector('.btn-edit-lesson').addEventListener('click', () => startEditLesson(lesson));
+      tr.querySelector('.btn-toggle-lesson').addEventListener('click', () => toggleLessonHidden(lesson));
+      tr.querySelector('.btn-delete-lesson').addEventListener('click', () => deleteLesson(lesson.id));
+ 
+      elements.adminLessonsTbody.appendChild(tr);
+    });
   });
 }
  
@@ -512,7 +718,7 @@ async function deleteUserAccount(user) {
  
 // Media Logic Controllers
 function selectLesson(index) {
-  if (index < 0 || index >= state.lessons.length) return;
+  if (index < 0 || index >= state.displayLessons.length) return;
  
   state.currentLessonIndex = index;
  
@@ -523,7 +729,7 @@ function selectLesson(index) {
   const items = elements.lessonListContainer.querySelectorAll('.lesson-item');
   if (items[index]) items[index].classList.add('active');
  
-  const lesson = state.lessons[index];
+  const lesson = state.displayLessons[index];
   elements.currentLessonTitle.textContent = lesson.title;
   elements.currentLessonDesc.textContent = lesson.desc || 'No description available.';
  
@@ -543,7 +749,7 @@ function selectLesson(index) {
  
   // Toggle directional states
   elements.btnPrevLesson.disabled = index === 0;
-  elements.btnNextLesson.disabled = index === state.lessons.length - 1;
+  elements.btnNextLesson.disabled = index === state.displayLessons.length - 1;
 }
  
 function clearPlayerDisplay() {
@@ -734,12 +940,17 @@ function setupEventListeners() {
   });
  
   elements.btnNextLesson.addEventListener('click', () => {
-    if (state.currentLessonIndex < state.lessons.length - 1) {
+    if (state.currentLessonIndex < state.displayLessons.length - 1) {
       selectLesson(state.currentLessonIndex + 1);
     }
   });
  
   // Syllabus Content Mutations (Admin Pane) — الآن تكتب مباشرة في Supabase
+  // Folder select: reveal the "new folder name" field only when creating one
+  elements.adminLessonFolderSelect.addEventListener('change', () => {
+    elements.newFolderNameGroup.classList.toggle('hidden', elements.adminLessonFolderSelect.value !== '__new__');
+  });
+ 
   elements.adminLessonForm.addEventListener('submit', async (e) => {
     e.preventDefault();
  
@@ -748,6 +959,8 @@ function setupEventListeners() {
     const rawUrl = elements.adminVideoUrl.value.trim();
     const duration = elements.adminDuration.value.trim();
     const desc = elements.adminDesc.value.trim();
+    const isHidden = elements.adminLessonHidden.checked;
+    const folderSelectValue = elements.adminLessonFolderSelect.value;
  
     const parsedVideoId = parseYoutubeId(rawUrl);
     if (!parsedVideoId) {
@@ -755,7 +968,34 @@ function setupEventListeners() {
       return;
     }
  
+    // Create a new folder first if the user asked for one — validated here
+    // so we can show the error before disabling the submit button.
+    if (folderSelectValue === '__new__' && !elements.adminNewFolderName.value.trim()) {
+      showToast('Please enter a name for the new folder.', 'error');
+      return;
+    }
+ 
     elements.btnAdminSubmit.disabled = true;
+ 
+    let folderId = folderSelectValue === '' ? null : folderSelectValue;
+ 
+    if (folderSelectValue === '__new__') {
+      const newFolderName = elements.adminNewFolderName.value.trim();
+      const { data: newFolder, error: folderError } = await supabaseClient
+        .from('folders')
+        .insert([{ name: newFolderName, sort_order: state.folders.length }])
+        .select()
+        .single();
+ 
+      if (folderError) {
+        console.error('Error creating folder:', folderError);
+        showToast('Failed to create new folder. Check admin permissions.', 'error');
+        elements.btnAdminSubmit.disabled = false;
+        return;
+      }
+ 
+      folderId = newFolder.id;
+    }
  
     if (id) {
       // تحديث درس موجود
@@ -765,7 +1005,9 @@ function setupEventListeners() {
           title: title,
           video_id: parsedVideoId,
           duration: duration,
-          description: desc
+          description: desc,
+          folder_id: folderId,
+          is_hidden: isHidden
         })
         .eq('id', id);
  
@@ -789,7 +1031,9 @@ function setupEventListeners() {
           video_id: parsedVideoId,
           duration: duration,
           description: desc,
-          sort_order: nextOrder
+          sort_order: nextOrder,
+          folder_id: folderId,
+          is_hidden: isHidden
         }]);
  
       elements.btnAdminSubmit.disabled = false;
@@ -806,7 +1050,7 @@ function setupEventListeners() {
     await refreshLessons();
     resetAdminForm();
  
-    if (state.lessons.length === 1) {
+    if (state.displayLessons.length === 1) {
       selectLesson(0);
     } else {
       selectLesson(state.currentLessonIndex);
@@ -920,6 +1164,11 @@ function startEditLesson(lesson) {
   elements.adminVideoUrl.value = `https://www.youtube.com/watch?v=${lesson.url}`;
   elements.adminDuration.value = lesson.duration || '';
   elements.adminDesc.value = lesson.desc || '';
+  elements.adminLessonHidden.checked = !!lesson.isHidden;
+ 
+  populateFolderSelect();
+  elements.adminLessonFolderSelect.value = lesson.folderId || '';
+  elements.newFolderNameGroup.classList.add('hidden');
  
   elements.btnAdminCancel.classList.remove('hidden');
   elements.btnAdminSubmit.textContent = 'Apply Updates';
@@ -944,11 +1193,11 @@ async function deleteLesson(id) {
  
   await refreshLessons();
  
-  if (state.currentLessonIndex >= state.lessons.length) {
-    state.currentLessonIndex = Math.max(0, state.lessons.length - 1);
+  if (state.currentLessonIndex >= state.displayLessons.length) {
+    state.currentLessonIndex = Math.max(0, state.displayLessons.length - 1);
   }
  
-  if (state.lessons.length > 0) {
+  if (state.displayLessons.length > 0) {
     selectLesson(state.currentLessonIndex);
   } else {
     clearPlayerDisplay();
@@ -958,6 +1207,8 @@ async function deleteLesson(id) {
 function resetAdminForm() {
   elements.adminLessonForm.reset();
   elements.adminLessonId.value = '';
+  elements.newFolderNameGroup.classList.add('hidden');
+  populateFolderSelect();
   elements.btnAdminCancel.classList.add('hidden');
   elements.btnAdminSubmit.textContent = 'Save Lesson';
 }

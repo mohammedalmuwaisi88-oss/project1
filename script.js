@@ -8,8 +8,8 @@
 // ============================================================================
 
 // Supabase Connection Configuration
-const SUPABASE_URL = "ضع الرابط هنا";
-const SUPABASE_KEY = "ضع المفتاح هنا";
+const SUPABASE_URL = "https://raklpfmsglgytqvvrxft.supabase.co";
+const SUPABASE_KEY = "sb_publishable_YGZLapsWUvCsgNSJkuV8iA_tMMVK_r5";
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 document.addEventListener('DOMContentLoaded', () => {

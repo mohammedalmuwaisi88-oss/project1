@@ -135,6 +135,12 @@
  
                 <!-- Admin Dashboard View -->
                 <div id="view-admin" class="view-panel hidden">
+                    <div class="admin-tabs">
+                        <button type="button" class="tab-btn active" id="tab-btn-lessons" data-tab="lessons">Course Management</button>
+                        <button type="button" class="tab-btn" id="tab-btn-users" data-tab="users">User Management</button>
+                    </div>
+ 
+                    <div id="admin-tab-lessons" class="admin-tab-content">
                     <div class="admin-grid">
                         <!-- Add/Edit Form -->
                         <div class="admin-card">
@@ -187,6 +193,35 @@
                             </div>
                         </div>
                     </div>
+                    </div>
+ 
+                    <!-- Users Management Tab -->
+                    <div id="admin-tab-users" class="admin-tab-content hidden">
+                        <div class="admin-card">
+                            <div class="users-toolbar">
+                                <div class="form-group" style="flex:1; min-width:220px; margin-bottom:0;">
+                                    <input type="text" id="user-search" placeholder="Search by name or email...">
+                                </div>
+                                <button type="button" id="btn-open-add-user" class="btn btn-accent">+ Add User</button>
+                            </div>
+                            <div class="admin-table-wrapper" style="margin-top:20px;">
+                                <table class="admin-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Email</th>
+                                            <th>Plan</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admin-users-tbody">
+                                        <!-- Dynamic user rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
                 </div>
  
                 <!-- Founder Page View -->
@@ -205,6 +240,64 @@
                     </div>
                 </div>
             </main>
+        </div>
+ 
+        <!-- Add User Modal -->
+        <div id="add-user-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <h3>Add New User</h3>
+                <p class="section-subtitle">Create a new learner account directly</p>
+                <form id="add-user-form">
+                    <div class="form-group">
+                        <label for="add-user-name">Full Name</label>
+                        <input type="text" id="add-user-name" required placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-user-email">Email Address</label>
+                        <input type="email" id="add-user-email" required placeholder="name@domain.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-user-password">Password</label>
+                        <input type="password" id="add-user-password" required placeholder="Minimum 6 characters">
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="add-user-subscribed"> Grant Premium Access</label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="btn-add-user-cancel" class="btn btn-outline">Cancel</button>
+                        <button type="submit" id="btn-add-user-submit" class="btn btn-accent">Create User</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+ 
+        <!-- Edit User Modal -->
+        <div id="edit-user-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <h3>Edit User</h3>
+                <p class="section-subtitle">Update account details, access & status</p>
+                <form id="edit-user-form">
+                    <input type="hidden" id="edit-user-id">
+                    <div class="form-group">
+                        <label for="edit-user-name">Full Name</label>
+                        <input type="text" id="edit-user-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-user-email">Email Address</label>
+                        <input type="email" id="edit-user-email" disabled>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="edit-user-subscribed"> Premium Subscribed</label>
+                    </div>
+                    <div class="form-group checkbox-group">
+                        <label><input type="checkbox" id="edit-user-active"> Account Active</label>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="btn-edit-user-cancel" class="btn btn-outline">Cancel</button>
+                        <button type="submit" class="btn btn-accent">Save Changes</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

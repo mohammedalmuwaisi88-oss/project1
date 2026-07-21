@@ -63,6 +63,7 @@ loginForm: document.getElementById('login-form'),
 registerForm: document.getElementById('register-form'),
 toRegister: document.getElementById('to-register'),
 toLogin: document.getElementById('to-login'),
+authSubtitle: document.getElementById('auth-subtitle'),
 loginEmail: document.getElementById('login-email'),
 loginPassword: document.getElementById('login-password'),
 registerName: document.getElementById('register-name'),
@@ -371,14 +372,18 @@ elements.toRegister.addEventListener('click', (e) => {
 e.preventDefault();
 elements.loginForm.classList.add('hidden');
 elements.registerForm.classList.remove('hidden');
+if (elements.authSubtitle) {
 elements.authSubtitle.textContent = 'Create a global study account';
+}
 });
 
 elements.toLogin.addEventListener('click', (e) => {
 e.preventDefault();
 elements.registerForm.classList.add('hidden');
 elements.loginForm.classList.remove('hidden');
+if (elements.authSubtitle) {
 elements.authSubtitle.textContent = 'Sign in to start learning';
+}
 });
 
 // Authentication Submission Handling (Supabase)
@@ -393,6 +398,7 @@ password: password
 });
 
 if (error || !data || !data.user) {
+console.error('Supabase signIn error:', error ? error.message : 'no user returned', error);
 showToast('Invalid access verification configuration or bad key values.', 'error');
 return;
 }
@@ -433,7 +439,8 @@ password: password
 });
 
 if (error) {
-showToast('Identity match duplicate collision inside platform base database.', 'error');
+console.error('Supabase signUp error:', error.message, error);
+showToast(`Registration failed: ${error.message}`, 'error');
 return;
 }
 

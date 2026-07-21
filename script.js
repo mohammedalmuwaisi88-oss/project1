@@ -25,7 +25,9 @@ let state = {
   currentUser: null,
   lessons: [],
   currentLessonIndex: 0,
-  viewMode: 'player' // 'player' | 'admin'
+  viewMode: 'player', // 'player' | 'admin'
+  users: [],
+  userSearchTerm: ''
 };
  
 // DOM Selectors
@@ -79,7 +81,36 @@ const elements = {
   adminDesc: document.getElementById('admin-desc'),
   btnAdminCancel: document.getElementById('btn-admin-cancel'),
   btnAdminSubmit: document.getElementById('btn-admin-submit'),
-  adminLessonsTbody: document.getElementById('admin-lessons-tbody')
+  adminLessonsTbody: document.getElementById('admin-lessons-tbody'),
+ 
+  // Admin Tabs
+  tabBtnLessons: document.getElementById('tab-btn-lessons'),
+  tabBtnUsers: document.getElementById('tab-btn-users'),
+  adminTabLessons: document.getElementById('admin-tab-lessons'),
+  adminTabUsers: document.getElementById('admin-tab-users'),
+ 
+  // User Management
+  userSearch: document.getElementById('user-search'),
+  adminUsersTbody: document.getElementById('admin-users-tbody'),
+  btnOpenAddUser: document.getElementById('btn-open-add-user'),
+ 
+  addUserModal: document.getElementById('add-user-modal'),
+  addUserForm: document.getElementById('add-user-form'),
+  addUserName: document.getElementById('add-user-name'),
+  addUserEmail: document.getElementById('add-user-email'),
+  addUserPassword: document.getElementById('add-user-password'),
+  addUserSubscribed: document.getElementById('add-user-subscribed'),
+  btnAddUserSubmit: document.getElementById('btn-add-user-submit'),
+  btnAddUserCancel: document.getElementById('btn-add-user-cancel'),
+ 
+  editUserModal: document.getElementById('edit-user-modal'),
+  editUserForm: document.getElementById('edit-user-form'),
+  editUserId: document.getElementById('edit-user-id'),
+  editUserName: document.getElementById('edit-user-name'),
+  editUserEmail: document.getElementById('edit-user-email'),
+  editUserSubscribed: document.getElementById('edit-user-subscribed'),
+  editUserActive: document.getElementById('edit-user-active'),
+  btnEditUserCancel: document.getElementById('btn-edit-user-cancel')
 };
  
 // System Orchestration & Launch
@@ -153,6 +184,12 @@ async function checkSession() {
   if (session && session.user) {
     const profile = await fetchUserProfile(session.user.id);
     if (profile) {
+      if (profile.is_active === false && !isAdminUser(profile)) {
+        await supabaseClient.auth.signOut();
+        showToast('This account has been disabled. Contact the administrator.', 'error');
+        showAuthScreen();
+        return;
+      }
       state.currentUser = profile;
       launchApp();
       return;
@@ -180,6 +217,7 @@ function launchApp() {
     elements.btnToggleAdmin.classList.remove('hidden');
     elements.premiumBadge.classList.add('hidden');
     elements.btnSubscribe.classList.add('hidden');
+    loadUsers().then(() => renderUsersTable());
   } else {
     elements.adminBadge.classList.add('hidden');
     elements.btnToggleAdmin.classList.add('hidden');
@@ -301,6 +339,177 @@ function renderAdminLessonsTable() {
   });
 }
  
+// -----------------------------------------------------------------------
+// User Management (Admin Only)
+// -----------------------------------------------------------------------
+ 
+async function loadUsers() {
+  const { data, error } = await supabaseClient
+    .from('users')
+    .select('*')
+    .order('name', { ascending: true });
+ 
+  if (error) {
+    console.error('Error loading users from Supabase:', error);
+    state.users = [];
+    return;
+  }
+ 
+  state.users = data || [];
+}
+ 
+function renderUsersTable() {
+  if (!elements.adminUsersTbody) return;
+ 
+  elements.adminUsersTbody.innerHTML = '';
+ 
+  const term = state.userSearchTerm.trim().toLowerCase();
+  const filtered = state.users.filter(u => {
+    if (!term) return true;
+    return (u.name && u.name.toLowerCase().includes(term)) ||
+           (u.email && u.email.toLowerCase().includes(term));
+  });
+ 
+  if (filtered.length === 0) {
+    elements.adminUsersTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="form-help">No users found.</td></tr>';
+    return;
+  }
+ 
+  filtered.forEach(user => {
+    const tr = document.createElement('tr');
+    const isActive = user.is_active !== false; // treat missing column as active
+    const isAdmin = isAdminUser(user);
+ 
+    tr.innerHTML = `
+      <td><div style="font-weight:500;">${user.name || ''}</div></td>
+      <td>${user.email || ''}</td>
+      <td><span class="badge ${user.subscribed || isAdmin ? 'badge-premium' : 'badge-free'}">${isAdmin ? 'Admin' : (user.subscribed ? 'Premium' : 'Free')}</span></td>
+      <td><span class="badge ${isActive ? 'badge-active' : 'badge-disabled'}">${isActive ? 'Active' : 'Disabled'}</span></td>
+      <td>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn btn-secondary btn-edit-user" data-id="${user.id}" style="padding:6px 10px; font-size:12px;">Edit</button>
+          <button class="btn ${isActive ? 'btn-outline' : 'btn-accent'} btn-toggle-user" data-id="${user.id}" style="padding:6px 10px; font-size:12px;">${isActive ? 'Disable' : 'Enable'}</button>
+          <button class="btn btn-danger btn-delete-user" data-id="${user.id}" style="padding:6px 10px; font-size:12px;">Delete</button>
+        </div>
+      </td>
+    `;
+ 
+    tr.querySelector('.btn-edit-user').addEventListener('click', () => openEditUserModal(user));
+    tr.querySelector('.btn-toggle-user').addEventListener('click', () => toggleUserActive(user));
+    tr.querySelector('.btn-delete-user').addEventListener('click', () => deleteUserAccount(user));
+ 
+    elements.adminUsersTbody.appendChild(tr);
+  });
+}
+ 
+function openAddUserModal() {
+  elements.addUserForm.reset();
+  elements.addUserModal.classList.remove('hidden');
+}
+ 
+function closeAddUserModal() {
+  elements.addUserModal.classList.add('hidden');
+}
+ 
+function openEditUserModal(user) {
+  elements.editUserId.value = user.id;
+  elements.editUserName.value = user.name || '';
+  elements.editUserEmail.value = user.email || '';
+  elements.editUserSubscribed.checked = !!user.subscribed;
+  elements.editUserActive.checked = user.is_active !== false;
+  elements.editUserModal.classList.remove('hidden');
+}
+ 
+function closeEditUserModal() {
+  elements.editUserModal.classList.add('hidden');
+}
+ 
+// Creates a brand new user account without disturbing the currently
+// signed-in admin session. We use a separate, non-persistent Supabase
+// client so the admin's own session in localStorage is never overwritten.
+async function adminCreateUser({ name, email, password, subscribed }) {
+  const tempClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+ 
+  const { data, error } = await tempClient.auth.signUp({ email, password });
+ 
+  if (error) {
+    return { error };
+  }
+ 
+  if (data.user) {
+    const { error: insertError } = await tempClient
+      .from('users')
+      .insert([{
+        id: data.user.id,
+        name: name,
+        email: email,
+        subscribed: !!subscribed,
+        is_active: true
+      }]);
+ 
+    if (insertError) {
+      return { error: insertError };
+    }
+  }
+ 
+  return { data };
+}
+ 
+async function toggleUserActive(user) {
+  if (isAdminUser(user)) {
+    showToast('Cannot disable the primary admin account.', 'error');
+    return;
+  }
+ 
+  const nextActive = !(user.is_active !== false);
+ 
+  const { error } = await supabaseClient
+    .from('users')
+    .update({ is_active: nextActive })
+    .eq('id', user.id);
+ 
+  if (error) {
+    console.error('Error updating user status:', error);
+    showToast('Failed to update user status.', 'error');
+    return;
+  }
+ 
+  showToast(`User ${nextActive ? 'enabled' : 'disabled'} successfully.`, 'success');
+  await loadUsers();
+  renderUsersTable();
+}
+ 
+async function deleteUserAccount(user) {
+  if (isAdminUser(user)) {
+    showToast('Cannot delete the primary admin account.', 'error');
+    return;
+  }
+ 
+  if (state.currentUser && user.id === state.currentUser.id) {
+    showToast('You cannot delete your own account.', 'error');
+    return;
+  }
+ 
+  if (!confirm(`Are you sure you want to delete ${user.name || user.email}? This removes their profile and access permanently.`)) return;
+ 
+  const { error } = await supabaseClient
+    .from('users')
+    .delete()
+    .eq('id', user.id);
+ 
+  if (error) {
+    console.error('Error deleting user:', error);
+    showToast('Failed to delete user. Check admin permissions.', 'error');
+    return;
+  }
+ 
+  showToast('User profile deleted successfully.', 'success');
+  await loadUsers();
+  renderUsersTable();
+}
+ 
 // Media Logic Controllers
 function selectLesson(index) {
   if (index < 0 || index >= state.lessons.length) return;
@@ -407,6 +616,12 @@ function setupEventListeners() {
  
     if (!profile) {
       showToast('Unable to load user profile record.', 'error');
+      return;
+    }
+ 
+    if (profile.is_active === false && !isAdminUser(profile)) {
+      await supabaseClient.auth.signOut();
+      showToast('This account has been disabled. Contact the administrator.', 'error');
       return;
     }
  
@@ -599,6 +814,103 @@ function setupEventListeners() {
   });
  
   elements.btnAdminCancel.addEventListener('click', resetAdminForm);
+ 
+  // Admin Tabs Switching
+  elements.tabBtnLessons.addEventListener('click', () => {
+    elements.tabBtnLessons.classList.add('active');
+    elements.tabBtnUsers.classList.remove('active');
+    elements.adminTabLessons.classList.remove('hidden');
+    elements.adminTabUsers.classList.add('hidden');
+  });
+ 
+  elements.tabBtnUsers.addEventListener('click', async () => {
+    elements.tabBtnUsers.classList.add('active');
+    elements.tabBtnLessons.classList.remove('active');
+    elements.adminTabUsers.classList.remove('hidden');
+    elements.adminTabLessons.classList.add('hidden');
+    await loadUsers();
+    renderUsersTable();
+  });
+ 
+  // User Search Filter
+  elements.userSearch.addEventListener('input', (e) => {
+    state.userSearchTerm = e.target.value;
+    renderUsersTable();
+  });
+ 
+  // Add User Modal Controls
+  elements.btnOpenAddUser.addEventListener('click', openAddUserModal);
+  elements.btnAddUserCancel.addEventListener('click', closeAddUserModal);
+  elements.addUserModal.addEventListener('click', (e) => {
+    if (e.target === elements.addUserModal) closeAddUserModal();
+  });
+ 
+  elements.addUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+ 
+    const name = elements.addUserName.value.trim();
+    const email = elements.addUserEmail.value.trim().toLowerCase();
+    const password = elements.addUserPassword.value;
+    const subscribed = elements.addUserSubscribed.checked;
+ 
+    if (password.length < 6) {
+      showToast('Password validation failed: Must exceed 5 elements.', 'error');
+      return;
+    }
+ 
+    elements.btnAddUserSubmit.disabled = true;
+    const { error } = await adminCreateUser({ name, email, password, subscribed });
+    elements.btnAddUserSubmit.disabled = false;
+ 
+    if (error) {
+      console.error('Error creating user:', error);
+      showToast(`Failed to create user: ${error.message}`, 'error');
+      return;
+    }
+ 
+    showToast('User account created successfully.', 'success');
+    closeAddUserModal();
+    await loadUsers();
+    renderUsersTable();
+  });
+ 
+  // Edit User Modal Controls
+  elements.btnEditUserCancel.addEventListener('click', closeEditUserModal);
+  elements.editUserModal.addEventListener('click', (e) => {
+    if (e.target === elements.editUserModal) closeEditUserModal();
+  });
+ 
+  elements.editUserForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+ 
+    const id = elements.editUserId.value;
+    const name = elements.editUserName.value.trim();
+    const subscribed = elements.editUserSubscribed.checked;
+    const isActive = elements.editUserActive.checked;
+ 
+    const { error } = await supabaseClient
+      .from('users')
+      .update({ name: name, subscribed: subscribed, is_active: isActive })
+      .eq('id', id);
+ 
+    if (error) {
+      console.error('Error updating user:', error);
+      showToast('Failed to update user. Check admin permissions.', 'error');
+      return;
+    }
+ 
+    showToast('User updated successfully.', 'success');
+    closeEditUserModal();
+    await loadUsers();
+    renderUsersTable();
+ 
+    // Keep current session in sync if admin edited their own row
+    if (state.currentUser && state.currentUser.id === id) {
+      state.currentUser.name = name;
+      state.currentUser.subscribed = subscribed;
+      elements.userDisplayName.textContent = name;
+    }
+  });
 }
  
 // Dynamic Panel Reset Workers
@@ -665,4 +977,3 @@ function showToast(msg, type = 'info') {
 // System Startup Execution Trigger
 init();
 });
- 

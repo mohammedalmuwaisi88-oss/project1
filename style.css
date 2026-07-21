@@ -545,6 +545,131 @@ body {
     background-color: rgba(255, 255, 255, 0.02);
 }
  
+/* Admin Tabs */
+.admin-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 24px;
+}
+.tab-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 600;
+    padding: 12px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: var(--transition-smooth);
+}
+.tab-btn:hover {
+    color: var(--text-main);
+}
+.tab-btn.active {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+}
+.admin-tab-content.hidden {
+    display: none;
+}
+ 
+/* User Management Toolbar */
+.users-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.users-toolbar input {
+    background-color: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    color: var(--text-main);
+    font-family: inherit;
+    font-size: 14px;
+    width: 100%;
+}
+.users-toolbar input:focus {
+    outline: none;
+    border-color: var(--color-accent);
+}
+ 
+/* Status Badges */
+.badge-active {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: var(--color-accent);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+}
+.badge-disabled {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: var(--color-danger);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+}
+.badge-free {
+    background-color: rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
+}
+ 
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    color: var(--text-main);
+    text-transform: none;
+    font-weight: 500;
+    cursor: pointer;
+}
+.checkbox-group input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--color-accent);
+    cursor: pointer;
+}
+ 
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(5, 8, 15, 0.7);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 500;
+    padding: 20px;
+}
+.modal-card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--bg-card-solid);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    animation: scaleUp 0.2s ease-out;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+.modal-card h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.modal-card form {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    margin-top: 8px;
+}
+ 
 /* Toast Alerts */
 .toast {
     position: fixed;
@@ -689,4 +814,3 @@ body {
     border-color: var(--color-accent);
     color: var(--color-accent);
 }
- 

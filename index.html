@@ -12,7 +12,7 @@
 <body>
     <!-- Notification Toast -->
     <div id="toast" class="toast hidden"></div>
-
+ 
     <!-- Auth Container -->
     <div id="auth-container" class="auth-container">
         <div class="auth-card">
@@ -34,7 +34,7 @@
                 <button type="submit" class="btn btn-primary btn-block">Sign In</button>
                 <p class="auth-switch">Don't have an account? <a href="#" id="to-register">Sign up</a></p>
             </form>
-
+ 
             <!-- Register Form -->
             <form id="register-form" class="auth-form hidden">
                 <div class="form-group">
@@ -54,7 +54,7 @@
             </form>
         </div>
     </div>
-
+ 
     <!-- Main Platform Container -->
     <div id="app-container" class="app-container hidden">
         <!-- Header -->
@@ -67,6 +67,7 @@
                 <button id="btn-subscribe" class="btn btn-accent hidden">Get Premium Access</button>
                 <span id="premium-badge" class="badge badge-premium hidden">Premium Member</span>
                 <button id="btn-toggle-admin" class="btn btn-outline hidden">Admin Panel</button>
+                <button id="btn-founder" class="btn btn-outline">Founder</button>
                 <button id="btn-toggle-course" class="btn btn-outline hidden">View Course</button>
                 <div class="user-profile">
                     <span id="user-display-name">Learner</span>
@@ -76,7 +77,7 @@
                 </div>
             </div>
         </header>
-
+ 
         <!-- Main Workspace -->
         <div class="workspace">
             <!-- Sidebar: Lesson List -->
@@ -89,7 +90,7 @@
                     <!-- Lessons dynamic rendering -->
                 </div>
             </aside>
-
+ 
             <!-- Main Content Area -->
             <main class="main-content">
                 <!-- Course Player View -->
@@ -110,7 +111,7 @@
                             <iframe id="video-player" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                         </div>
                     </div>
-
+ 
                     <!-- Video Details & Controls -->
                     <div class="player-controls-bar">
                         <button id="btn-prev-lesson" class="btn btn-secondary">
@@ -125,13 +126,13 @@
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
                         </button>
                     </div>
-
+ 
                     <div class="course-details-card">
                         <h3>About this lesson</h3>
                         <p id="current-lesson-desc">No description available.</p>
                     </div>
                 </div>
-
+ 
                 <!-- Admin Dashboard View -->
                 <div id="view-admin" class="view-panel hidden">
                     <div class="admin-grid">
@@ -164,7 +165,7 @@
                                 </div>
                             </form>
                         </div>
-
+ 
                         <!-- Current Lessons Directory -->
                         <div class="admin-card">
                             <h3>Current Core Syllabus</h3>
@@ -184,6 +185,22 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
+                    </div>
+                </div>
+ 
+                <!-- Founder Page View -->
+                <div id="view-founder" class="view-panel hidden">
+                    <div class="founder-page">
+                        <div class="founder-card">
+                            <div class="founder-avatar">MA</div>
+                            <h1 class="founder-name">Mohammed Almuwaisi</h1>
+                            <p class="founder-role">مهندس | CEO</p>
+                            <p class="founder-quote">"أقود بالمعرفة، وأبتكر بالخبرة، وأحوّل الرؤية إلى واقع من خلال الهندسة والإدارة."</p>
+                            <a href="mailto:mohammed.almuwaisi8888@gmail.com" class="founder-email">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                                mohammed.almuwaisi8888@gmail.com
+                            </a>
                         </div>
                     </div>
                 </div>

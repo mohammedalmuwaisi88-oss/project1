@@ -149,6 +149,18 @@
                             <form id="admin-lesson-form">
                                 <input type="hidden" id="admin-lesson-id">
                                 <div class="form-group">
+                                    <label for="admin-lesson-folder-select">Add Lesson To</label>
+                                    <select id="admin-lesson-folder-select">
+                                        <option value="">— Uncategorized (no folder) —</option>
+                                        <option value="__new__">+ Create New Folder...</option>
+                                    </select>
+                                    <small class="form-help">Choose an existing folder, or create a new one for this lesson.</small>
+                                </div>
+                                <div class="form-group hidden" id="new-folder-name-group">
+                                    <label for="admin-new-folder-name">New Folder Name</label>
+                                    <input type="text" id="admin-new-folder-name" placeholder="e.g., Module 1 - Backend Basics">
+                                </div>
+                                <div class="form-group">
                                     <label for="admin-title">Lesson Title</label>
                                     <input type="text" id="admin-title" required placeholder="e.g., 01 - Getting Started with APIs">
                                 </div>
@@ -164,6 +176,9 @@
                                 <div class="form-group">
                                     <label for="admin-desc">Lesson Description</label>
                                     <textarea id="admin-desc" rows="4" required placeholder="Describe the structural and conceptual learning outcome of this lesson..."></textarea>
+                                </div>
+                                <div class="form-group checkbox-group">
+                                    <label><input type="checkbox" id="admin-lesson-hidden"> Hide this lesson from students</label>
                                 </div>
                                 <div class="form-actions">
                                     <button type="button" id="btn-admin-cancel" class="btn btn-outline hidden">Cancel Edit</button>
@@ -183,6 +198,7 @@
                                             <th>Sequence</th>
                                             <th>Title</th>
                                             <th>Duration</th>
+                                            <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>

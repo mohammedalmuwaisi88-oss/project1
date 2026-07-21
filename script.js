@@ -49,6 +49,8 @@ const elements = {
   premiumBadge: document.getElementById('premium-badge'),
   btnSubscribe: document.getElementById('btn-subscribe'),
   btnToggleAdmin: document.getElementById('btn-toggle-admin'),
+  btnFounder: document.getElementById('btn-founder'),
+  viewFounder: document.getElementById('view-founder'),
   btnToggleCourse: document.getElementById('btn-toggle-course'),
   btnLogout: document.getElementById('btn-logout'),
   logoClick: document.getElementById('logo-click'),
@@ -206,15 +208,22 @@ function launchApp() {
  
 function setView(mode) {
   state.viewMode = mode;
+ 
+  // إخفاء كل الصفحات أول شي
+  elements.viewPlayer.classList.add('hidden');
+  elements.viewAdmin.classList.add('hidden');
+  elements.viewFounder.classList.add('hidden');
+  elements.btnToggleAdmin.classList.add('hidden');
+  elements.btnToggleCourse.classList.add('hidden');
+ 
   if (mode === 'admin') {
-    elements.viewPlayer.classList.add('hidden');
     elements.viewAdmin.classList.remove('hidden');
-    elements.btnToggleAdmin.classList.add('hidden');
+    elements.btnToggleCourse.classList.remove('hidden');
+  } else if (mode === 'founder') {
+    elements.viewFounder.classList.remove('hidden');
     elements.btnToggleCourse.classList.remove('hidden');
   } else {
-    elements.viewAdmin.classList.add('hidden');
     elements.viewPlayer.classList.remove('hidden');
-    elements.btnToggleCourse.classList.add('hidden');
     if (isAdminUser(state.currentUser)) {
       elements.btnToggleAdmin.classList.remove('hidden');
     }
@@ -498,6 +507,7 @@ function setupEventListeners() {
   });
  
   elements.btnToggleAdmin.addEventListener('click', () => setView('admin'));
+  elements.btnFounder.addEventListener('click', () => setView('founder'));
   elements.btnToggleCourse.addEventListener('click', () => setView('player'));
   elements.logoClick.addEventListener('click', () => setView('player'));
  
@@ -655,3 +665,4 @@ function showToast(msg, type = 'info') {
 // System Startup Execution Trigger
 init();
 });
+ 

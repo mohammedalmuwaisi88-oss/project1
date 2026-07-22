@@ -108,7 +108,7 @@
                         
                         <!-- Video Frame Box -->
                         <div id="video-container" class="video-container">
-                            <iframe id="video-player" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                            <div id="video-player"></div>
                         </div>
                     </div>
  
@@ -258,6 +258,28 @@
             </main>
         </div>
  
+        <!-- Subscribe Options Modal -->
+        <div id="subscribe-modal" class="modal-overlay hidden">
+            <div class="modal-card">
+                <h3>Unlock Premium Access</h3>
+                <p class="section-subtitle">Choose how you'd like to continue</p>
+                <div class="subscribe-options">
+                    <button type="button" id="btn-subscribe-payment" class="btn btn-secondary btn-block">Go to Payment Options</button>
+                    <button type="button" id="btn-subscribe-coupon-toggle" class="btn btn-outline btn-block">I Have a Coupon Code</button>
+                </div>
+                <form id="coupon-form" class="hidden">
+                    <div class="form-group">
+                        <label for="coupon-code-input">Coupon Code</label>
+                        <input type="text" id="coupon-code-input" placeholder="Enter your coupon code">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="btn-subscribe-modal-cancel" class="btn btn-outline">Cancel</button>
+                        <button type="submit" class="btn btn-accent">Apply Coupon</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+ 
         <!-- Add User Modal -->
         <div id="add-user-modal" class="modal-overlay hidden">
             <div class="modal-card">
@@ -317,6 +339,7 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://www.youtube.com/iframe_api"></script>
     <script src="script.js"></script>
 </body>
 </html>

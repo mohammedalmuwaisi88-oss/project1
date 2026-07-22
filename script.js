@@ -29,7 +29,8 @@ let state = {
   currentLessonIndex: 0,
   viewMode: 'player', // 'player' | 'admin'
   users: [],
-  userSearchTerm: ''
+  userSearchTerm: '',
+  watchedLessonIds: new Set()
 };
  
 // DOM Selectors
@@ -69,6 +70,14 @@ const elements = {
   videoContainer: document.getElementById('video-container'),
   videoPlayer: document.getElementById('video-player'),
   btnLockSubscribe: document.getElementById('btn-lock-subscribe'),
+ 
+  subscribeModal: document.getElementById('subscribe-modal'),
+  btnSubscribePayment: document.getElementById('btn-subscribe-payment'),
+  btnSubscribeCouponToggle: document.getElementById('btn-subscribe-coupon-toggle'),
+  subscribeOptions: document.querySelector('.subscribe-options'),
+  couponForm: document.getElementById('coupon-form'),
+  couponCodeInput: document.getElementById('coupon-code-input'),
+  btnSubscribeModalCancel: document.getElementById('btn-subscribe-modal-cancel'),
  
   btnPrevLesson: document.getElementById('btn-prev-lesson'),
   btnNextLesson: document.getElementById('btn-next-lesson'),
@@ -118,6 +127,92 @@ const elements = {
   editUserActive: document.getElementById('edit-user-active'),
   btnEditUserCancel: document.getElementById('btn-edit-user-cancel')
 };
+ 
+// -----------------------------------------------------------------------
+// YouTube IFrame Player API — يتيح لنا معرفة متى فعلاً بدأ المستخدم التشغيل
+// -----------------------------------------------------------------------
+let ytPlayer = null;
+let ytApiReady = false;
+let pendingVideoId = null;
+ 
+window.onYouTubeIframeAPIReady = function () {
+  ytApiReady = true;
+  ytPlayer = new YT.Player('video-player', {
+    host: 'https://www.youtube.com',
+    playerVars: { rel: 0, autoplay: 0 },
+    events: {
+      onReady: () => {
+        if (pendingVideoId) {
+          ytPlayer.cueVideoById(pendingVideoId);
+          pendingVideoId = null;
+        }
+      },
+      onStateChange: onPlayerStateChange
+    }
+  });
+};
+ 
+function onPlayerStateChange(event) {
+  // YT.PlayerState.PLAYING === 1
+  if (event.data === 1) {
+    const lesson = state.displayLessons[state.currentLessonIndex];
+    if (lesson) markLessonWatched(lesson.id);
+  }
+}
+ 
+function loadYoutubeVideo(videoId) {
+  if (ytApiReady && ytPlayer && typeof ytPlayer.loadVideoById === 'function') {
+    ytPlayer.loadVideoById(videoId);
+  } else {
+    pendingVideoId = videoId;
+  }
+}
+ 
+function stopYoutubeVideo() {
+  if (ytApiReady && ytPlayer && typeof ytPlayer.stopVideo === 'function') {
+    ytPlayer.stopVideo();
+  }
+}
+ 
+// -----------------------------------------------------------------------
+// Watched Lessons — علامة صغيرة بجانب أي درس تم تشغيله فعلياً
+// -----------------------------------------------------------------------
+ 
+async function loadWatchedLessons() {
+  if (!state.currentUser) {
+    state.watchedLessonIds = new Set();
+    return;
+  }
+ 
+  const { data, error } = await supabaseClient
+    .from('lesson_progress')
+    .select('lesson_id')
+    .eq('user_id', state.currentUser.id);
+ 
+  if (error) {
+    console.error('Error loading watched lessons:', error);
+    state.watchedLessonIds = new Set();
+    return;
+  }
+ 
+  state.watchedLessonIds = new Set((data || []).map(row => row.lesson_id));
+}
+ 
+async function markLessonWatched(lessonId) {
+  if (!state.currentUser || state.watchedLessonIds.has(lessonId)) return;
+ 
+  // Update UI immediately, then persist in the background
+  state.watchedLessonIds.add(lessonId);
+  renderLessonSidebar();
+ 
+  const { error } = await supabaseClient
+    .from('lesson_progress')
+    .upsert([{ user_id: state.currentUser.id, lesson_id: lessonId, watched_at: new Date().toISOString() }], { onConflict: 'user_id,lesson_id' });
+ 
+  if (error) {
+    console.error('Error saving watched lesson:', error);
+  }
+}
  
 // System Orchestration & Launch
 async function init() {
@@ -362,6 +457,8 @@ function launchApp() {
   renderAdminLessonsTable();
   setView('player');
  
+  loadWatchedLessons().then(() => renderLessonSidebar());
+ 
   // Boot first lesson if available
   if (state.displayLessons.length > 0) {
     selectLesson(0);
@@ -441,10 +538,14 @@ function renderLessonSidebar() {
  
       // First item overall always unlocked, rest depends on access tier status
       const isLocked = index > 0 && !isSubscribed;
+      const isWatched = state.watchedLessonIds.has(lesson.id);
  
       item.innerHTML = `
         <div class="lesson-item-left">
-          <span class="lesson-title">${lesson.title}</span>
+          <div style="display:flex; align-items:center; gap:4px; min-width:0;">
+            <span class="lesson-title" style="min-width:0;">${lesson.title}</span>
+            ${isWatched ? `<span class="watched-check" title="Watched">✓</span>` : ''}
+          </div>
           <span class="lesson-duration">${lesson.duration || ''}</span>
         </div>
         ${isLocked ? `
@@ -740,11 +841,11 @@ function selectLesson(index) {
   if (requiresLock) {
     elements.playerLock.classList.remove('hidden');
     elements.videoContainer.classList.add('hidden');
-    elements.videoPlayer.src = "";
+    stopYoutubeVideo();
   } else {
     elements.playerLock.classList.add('hidden');
     elements.videoContainer.classList.remove('hidden');
-    elements.videoPlayer.src = `https://www.youtube.com/embed/${lesson.url}?autoplay=0&rel=0`;
+    loadYoutubeVideo(lesson.url);
   }
  
   // Toggle directional states
@@ -755,7 +856,7 @@ function selectLesson(index) {
 function clearPlayerDisplay() {
   elements.currentLessonTitle.textContent = "No Lessons Available";
   elements.currentLessonDesc.textContent = "Please sign in to admin dashboard panel to assemble syllabus courses.";
-  elements.videoPlayer.src = "";
+  stopYoutubeVideo();
   elements.btnPrevLesson.disabled = true;
   elements.btnNextLesson.disabled = true;
 }
@@ -888,7 +989,9 @@ function setupEventListeners() {
   });
  
   // Access Plan Configuration Switch
-  const handleSubscribeAction = async () => {
+  const VALID_COUPON_CODE = '88881234';
+ 
+  const grantPremiumAccess = async () => {
     if (!state.currentUser) return;
  
     const { error } = await supabaseClient
@@ -911,8 +1014,50 @@ function setupEventListeners() {
     selectLesson(state.currentLessonIndex);
   };
  
-  elements.btnSubscribe.addEventListener('click', handleSubscribeAction);
-  elements.btnLockSubscribe.addEventListener('click', handleSubscribeAction);
+  const openSubscribeModal = () => {
+    if (!state.currentUser) return;
+    elements.couponForm.classList.add('hidden');
+    elements.subscribeOptions.classList.remove('hidden');
+    elements.couponCodeInput.value = '';
+    elements.subscribeModal.classList.remove('hidden');
+  };
+ 
+  const closeSubscribeModal = () => {
+    elements.subscribeModal.classList.add('hidden');
+  };
+ 
+  elements.btnSubscribe.addEventListener('click', openSubscribeModal);
+  elements.btnLockSubscribe.addEventListener('click', openSubscribeModal);
+ 
+  elements.subscribeModal.addEventListener('click', (e) => {
+    if (e.target === elements.subscribeModal) closeSubscribeModal();
+  });
+  elements.btnSubscribeModalCancel.addEventListener('click', closeSubscribeModal);
+ 
+  // Payment gateway is not wired up to a real processor yet
+  elements.btnSubscribePayment.addEventListener('click', () => {
+    closeSubscribeModal();
+    showToast('Payment gateway integration coming soon. Please use a coupon code for now.', 'error');
+  });
+ 
+  elements.btnSubscribeCouponToggle.addEventListener('click', () => {
+    elements.subscribeOptions.classList.add('hidden');
+    elements.couponForm.classList.remove('hidden');
+    elements.couponCodeInput.focus();
+  });
+ 
+  elements.couponForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const code = elements.couponCodeInput.value.trim();
+ 
+    if (code !== VALID_COUPON_CODE) {
+      showToast('Invalid coupon code.', 'error');
+      return;
+    }
+ 
+    closeSubscribeModal();
+    await grantPremiumAccess();
+  });
  
   // Core Layout Nav Actions
   elements.btnLogout.addEventListener('click', async () => {

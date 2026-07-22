@@ -59,6 +59,8 @@ const elements = {
   btnToggleCourse: document.getElementById('btn-toggle-course'),
   btnLogout: document.getElementById('btn-logout'),
   logoClick: document.getElementById('logo-click'),
+  btnToggleSidebar: document.getElementById('btn-toggle-sidebar'),
+  appSidebar: document.getElementById('app-sidebar'),
  
   lessonListContainer: document.getElementById('lesson-list-container'),
   courseProgressText: document.getElementById('course-progress-text'),
@@ -1076,6 +1078,15 @@ function setupEventListeners() {
   elements.btnFounder.addEventListener('click', () => setView('founder'));
   elements.btnToggleCourse.addEventListener('click', () => setView('player'));
   elements.logoClick.addEventListener('click', () => setView('player'));
+ 
+  // Lessons Sidebar Show/Hide Toggle
+  if (localStorage.getItem('eduflix_sidebar_collapsed') === 'true') {
+    elements.appSidebar.classList.add('collapsed');
+  }
+  elements.btnToggleSidebar.addEventListener('click', () => {
+    const isNowCollapsed = elements.appSidebar.classList.toggle('collapsed');
+    localStorage.setItem('eduflix_sidebar_collapsed', isNowCollapsed ? 'true' : 'false');
+  });
  
   // Core Linear Sequence Step Triggers
   elements.btnPrevLesson.addEventListener('click', () => {

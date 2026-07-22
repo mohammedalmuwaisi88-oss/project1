@@ -646,6 +646,29 @@ body {
     cursor: pointer;
 }
  
+.subscribe-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 16px;
+}
+ 
+/* Watched Lesson Indicator */
+.watched-check {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: rgba(16, 185, 129, 0.18);
+    color: var(--color-accent);
+    font-size: 10px;
+    font-weight: 700;
+    margin-left: 6px;
+    flex-shrink: 0;
+}
+ 
 /* Modal Overlay */
 .modal-overlay {
     position: fixed;
